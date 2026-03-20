@@ -10,21 +10,43 @@ HTML = """
     <title>Subnet Calculator</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: Arial; padding: 20px; max-width: 520px; margin: auto; }
+        body { font-family: Arial; padding: 20px; max-width: 520px; margin: auto; transition: 0.3s; }
         input, button { width: 100%; padding: 10px; margin: 8px 0; font-size: 16px; }
-        .result { background: #f4f4f4; padding: 12px; border-radius: 10px; }
+        .result { padding: 12px; border-radius: 10px; margin-top:10px; }
         .error { color: red; }
         .binary { font-family: monospace; font-size: 14px; word-break: break-all; }
-        .net { color: green; }
-        .host { color: red; }
-        .saved { background:#eef; padding:10px; border-radius:10px; margin-top:10px; }
+        .net { color: #4CAF50; }
+        .host { color: #E53935; }
+        .saved { padding:10px; border-radius:10px; margin-top:10px; }
+
+        /* LIGHT MODE */
+        body.light { background: #ffffff; color: #000; }
+        body.light .result { background: #f4f4f4; }
+        body.light .saved { background:#eef; }
+
+        /* DARK MODE */
+        body.dark { background: #121212; color: #fff; }
+        body.dark .result { background: #1e1e1e; }
+        body.dark input, body.dark button { background:#2a2a2a; color:#fff; border:1px solid #444; }
+        body.dark .saved { background:#1e2a3a; }
+
+        .toggle {
+            margin-bottom: 10px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            border: none;
+        }
     </style>
 </head>
-<body>
-    <h2>Subnet Calculator</h2>
+<body class="light">
+
+    <button class="toggle" onclick="toggleMode()">🌙 Toggle Dark Mode</button>
+
+    <h2>Subnet Calculator 🚀</h2>
 
     <form method="post">
-        <input type="text" name="ip" placeholder="Enter IP (192.168.1.10)" required>
+        <input type="text" name="ip" placeholder="Enter IP (192.168.1.10)" required autofocus>
 
         <label>CIDR: <span id="cidrVal">{{cidr if cidr is not none else 24}}</span></label>
         <input type="range" min="0" max="32" name="cidr" id="cidr"
@@ -55,21 +77,12 @@ HTML = """
 
     <div class="result">
         <b>📘 Subnet Explanation:</b><br><br>
-
-        • This is a <b>/{{result.cidr}}</b> network<br>
-        • Total hosts = <b>{{result.hosts}}</b><br>
-        • Block size = <b>{{result.block_size}}</b><br><br>
-
-        • Network address = first IP in the subnet<br>
-        • Broadcast address = last IP in the subnet<br>
-        • Usable range = everything in between<br><br>
-
-        • <span class="net">Green bits</span> = Network<br>
-        • <span class="host">Red bits</span> = Host
+        • /{{result.cidr}} network<br>
+        • Hosts = {{result.hosts}}<br>
+        • Block size = {{result.block_size}}<br>
     </div>
 
     <script>
-        // Save last 5 calculations
         let entry = "{{result.network}} | /{{result.cidr}}";
         let arr = JSON.parse(localStorage.getItem('subnets') || '[]');
         arr.unshift(entry);
@@ -86,7 +99,30 @@ function renderSaved(){
     document.getElementById('saved').innerHTML =
         '<b>Recent:</b><br>' + arr.map(a => `${a}`).join('<br>');
 }
+
+function toggleMode(){
+    let body = document.body;
+    if(body.classList.contains('light')){
+        body.classList.remove('light');
+        body.classList.add('dark');
+        localStorage.setItem('theme','dark');
+    } else {
+        body.classList.remove('dark');
+        body.classList.add('light');
+        localStorage.setItem('theme','light');
+    }
+}
+
+function loadTheme(){
+    let theme = localStorage.getItem('theme');
+    if(theme === 'dark'){
+        document.body.classList.remove('light');
+        document.body.classList.add('dark');
+    }
+}
+
 renderSaved();
+loadTheme();
 </script>
 
 </body>
@@ -101,18 +137,23 @@ def valid_ip(ip):
         return False
     return all(0 <= int(p) <= 255 for p in ip.split('.'))
 
+
 def valid_cidr(cidr):
     return 0 <= cidr <= 32
+
 
 def ip_to_int(ip):
     parts = list(map(int, ip.split('.')))
     return (parts[0]<<24) + (parts[1]<<16) + (parts[2]<<8) + parts[3]
 
+
 def int_to_ip(i):
     return f"{(i>>24)&255}.{(i>>16)&255}.{(i>>8)&255}.{i&255}"
 
+
 def to_binary(ip):
     return '.'.join(f"{int(o):08b}" for o in ip.split('.'))
+
 
 def color_bits(binary, cidr):
     bits = binary.replace('.', '')
@@ -126,7 +167,6 @@ def color_bits(binary, cidr):
             colored += '.'
     return colored
 
-# ---------- Route ----------
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -162,7 +202,6 @@ def index():
             ip_bin = to_binary(ip)
             mask_bin = to_binary(mask)
 
-            # Block size
             mask_octets = list(map(int, mask.split('.')))
             interesting = next((o for o in mask_octets if o != 255), 255)
             block_size = 256 - interesting if interesting != 255 else 1
@@ -182,7 +221,6 @@ def index():
 
     return render_template_string(HTML, result=result, error=error, cidr=cidr_val)
 
-# ---------- Run ----------
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
